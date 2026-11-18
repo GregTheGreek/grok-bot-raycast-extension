@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"
+    />
+    <title>Grok Bot</title>
+    <link rel="stylesheet" href="chat.css" />
+    <script defer src="chat.js"></script>
+  </head>
+  <body>
+    <header>
+      <button
+        id="back"
+        class="icon-button"
+        aria-label="Back to bots"
+        title="Back to bots"
+      >
+        ‹
+      </button>
+      <button id="bot" class="bot-pill" title="Open chat in Grok Bot (⌘O)">
+        <img id="avatar" alt="" /><span id="name"></span>
+      </button>
+      <button
+        id="close"
+        class="icon-button"
+        aria-label="Close"
+        title="Close (Esc)"
+      >
+        ×
+      </button>
+    </header>
+    <main id="history" aria-label="Conversation" aria-live="polite"></main>
+    <footer>
+      <div id="status" role="status"></div>
+      <form id="composer">
+        <textarea
+          id="message"
+          rows="1"
+          aria-label="Message"
+          placeholder="Message…"
+          autofocus
+        ></textarea>
+        <button
+          id="send"
+          type="submit"
+          aria-label="Send message"
+          title="Send message (⌘Return)"
+        >
+          <span>↑</span>
+        </button>
+      </form>
+      <div class="shortcut">
+        ⌘Return to send <span>⌘O to open in Grok Bot</span>
+      </div>
+    </footer>
+  </body>
+</html>

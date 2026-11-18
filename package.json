@@ -1,0 +1,85 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "grok-bot",
+  "title": "Grok Bot",
+  "description": "Find your Grok bots, send them messages, and open their chats.",
+  "icon": "grok-bot-icon.png",
+  "author": "dcbuild3r",
+  "license": "MIT",
+  "platforms": [
+    "macOS"
+  ],
+  "categories": [
+    "Communication",
+    "Productivity"
+  ],
+  "commands": [
+    {
+      "name": "send-message",
+      "title": "Message a Bot",
+      "description": "Search your open Grok bots and send a message to the selected bot",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "message",
+          "type": "text",
+          "placeholder": "Message",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "bot-wheel",
+      "title": "Bot Wheel",
+      "description": "Choose a Grok bot from an interactive radial menu",
+      "mode": "no-view",
+      "arguments": [
+        {
+          "name": "message",
+          "type": "text",
+          "placeholder": "Message",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "open-chat",
+      "title": "Open Bot Chat",
+      "description": "Search your open Grok bots and jump to a chat",
+      "mode": "view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "userDataPath",
+      "title": "Grok Bot Data Folder",
+      "description": "Optional custom Electron user-data folder containing sand-client-persistence. Defaults to ~/Library/Application Support/Grok Bot.",
+      "type": "textfield",
+      "required": false
+    }
+  ],
+  "scripts": {
+    "build:native": "bun scripts/sync-grok-assets.mjs && bun scripts/build-native.mjs",
+    "build": "bun run build:native && bun --bun ray build --environment dist --output dist",
+    "dev": "bun run build:native && bun --bun ray develop",
+    "lint": "bun --bun ray lint",
+    "typecheck": "bun --bun tsc --noEmit",
+    "test": "bun test src/lib/*.test.ts"
+  },
+  "dependencies": {
+    "@raycast/api": "^2.11.1"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.5"
+    }
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.0.4",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.9.0"
+  }
+}
