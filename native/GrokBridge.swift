@@ -11,6 +11,7 @@ struct Request: Decodable {
   let accountPath: String
   let selectionPath: String
   let lockPath: String
+  let allowBackgroundReuse: Bool?
 }
 
 struct BridgeError: LocalizedError {
@@ -148,7 +149,7 @@ func send(_ request: Request) throws {
     return window
   }
   var targetWindow: AXUIElement?
-  if let app = running(), selected(request) {
+  if request.allowBackgroundReuse == true, let app = running(), selected(request) {
     let root = AXUIElementCreateApplication(app.processIdentifier)
     publishContent(root)
     // The first request after Grok Bot starts takes a few seconds to publish the content.
