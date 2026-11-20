@@ -135,24 +135,11 @@ func send(_ request: Request) throws {
   guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
     throw BridgeError("Install and sign in to the Grok Bot macOS app first.")
   }
-  // The send works on Grok Bot in the background. Grok Bot brings itself forward when it
-  // handles a chat link, so focus goes back to the app the user was in.
   // Electron publishes window content to Accessibility in the background only on request.
   let publishContent = { (root: AXUIElement) in
     AXUIElementSetMessagingTimeout(root, 1)
     AXUIElementSetAttributeValue(root, "AXManualAccessibility" as CFString, kCFBooleanTrue)
   }
-  let previous = NSWorkspace.shared.frontmostApplication
-  let returnFocus = {
-    guard let previous, previous.bundleIdentifier != bundleID, !previous.isTerminated,
-      NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleID
-    else { return }
-    AXUIElementSetAttributeValue(
-      AXUIElementCreateApplication(previous.processIdentifier), kAXFrontmostAttribute as CFString,
-      kCFBooleanTrue)
-    previous.activate()
-  }
-  defer { returnFocus() }
   let running = { NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first }
   let readyWindow = { (root: AXUIElement) -> AXUIElement? in
     guard let window = focusedWindow(root), selected(request),
@@ -200,7 +187,6 @@ func send(_ request: Request) throws {
       || waitFor(
         12,
         condition: {
-          returnFocus()
           targetWindow = readyWindow(root)
           return targetWindow != nil
         }), let window = targetWindow
