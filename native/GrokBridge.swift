@@ -179,13 +179,15 @@ func send(_ request: Request) throws {
   guard sameWindow(root, window), let prompt = composer(window) else {
     throw BridgeError("Grok Bot’s message composer is unavailable.")
   }
-  // A failed earlier attempt can leave this exact message in the composer, so a retry sends it.
-  let existing = string(prompt, kAXValueAttribute)
-  let alreadyTyped = existing == request.message
-  guard
-    alreadyTyped
-      || (existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        && sendButton(window) == nil)
+  guard let existing = attribute(prompt, kAXValueAttribute) as? String else {
+    throw BridgeError("Grok Bot’s draft could not be read. Open the chat in Grok Bot to continue.")
+  }
+  if existing == request.message {
+    throw BridgeError(
+      "This message is already drafted in Grok Bot. Press ⌘O to review and send it there.")
+  }
+  guard existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+    sendButton(window) == nil
   else {
     throw BridgeError(
       "This chat already has a draft or attachment. Send or clear it in Grok Bot, then try again.")
@@ -194,11 +196,8 @@ func send(_ request: Request) throws {
   guard selected(request), sameWindow(root, window), heading(window, name: request.name) else {
     throw BridgeError("The active chat changed. Select the bot again before sending.")
   }
-  let result =
-    alreadyTyped
-    ? AXError.success
-    : AXUIElementSetAttributeValue(
-      prompt, kAXValueAttribute as CFString, request.message as CFString)
+  let result = AXUIElementSetAttributeValue(
+    prompt, kAXValueAttribute as CFString, request.message as CFString)
   guard result == .success else {
     throw BridgeError(
       "Grok Bot could not accept text through Accessibility. Check Raycast’s Accessibility permission."
