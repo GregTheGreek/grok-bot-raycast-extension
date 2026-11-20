@@ -179,8 +179,13 @@ func send(_ request: Request) throws {
   guard sameWindow(root, window), let prompt = composer(window) else {
     throw BridgeError("Grok Bot’s message composer is unavailable.")
   }
-  guard string(prompt, kAXValueAttribute).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-    sendButton(window) == nil
+  // A failed earlier attempt can leave this exact message in the composer, so a retry sends it.
+  let existing = string(prompt, kAXValueAttribute)
+  let alreadyTyped = existing == request.message
+  guard
+    alreadyTyped
+      || (existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && sendButton(window) == nil)
   else {
     throw BridgeError(
       "This chat already has a draft or attachment. Send or clear it in Grok Bot, then try again.")
@@ -189,8 +194,11 @@ func send(_ request: Request) throws {
   guard selected(request), sameWindow(root, window), heading(window, name: request.name) else {
     throw BridgeError("The active chat changed. Select the bot again before sending.")
   }
-  let result = AXUIElementSetAttributeValue(
-    prompt, kAXValueAttribute as CFString, request.message as CFString)
+  let result =
+    alreadyTyped
+    ? AXError.success
+    : AXUIElementSetAttributeValue(
+      prompt, kAXValueAttribute as CFString, request.message as CFString)
   guard result == .success else {
     throw BridgeError(
       "Grok Bot could not accept text through Accessibility. Check Raycast’s Accessibility permission."
