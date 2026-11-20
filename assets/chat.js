@@ -110,7 +110,7 @@ window.updateChat = (state) => {
   sendButton.classList.toggle("sending", sending);
   sendButton.setAttribute("aria-busy", String(sending));
   resize();
-  if (state.focus) message.focus();
+  if (state.sending === false) message.focus();
 };
 function submit() {
   if (!sending && canSend && message.value.trim()) {

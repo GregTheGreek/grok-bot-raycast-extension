@@ -35,7 +35,7 @@ You need macOS, [Raycast](https://www.raycast.com/), the **Grok Bot macOS app** 
 
 3. Open Raycast and search for **Message a Bot**. Choose a bot to open its conversation window.
 
-4. When prompted for sending permission, enable **Raycast** in **System Settings → Privacy & Security → Accessibility**.
+4. The first time you open a chat, Raycast asks to restart Grok Bot with a local debugging port. Raycast sends messages and shows replies through that port. Grok Bot keeps the port open until it next quits; Raycast asks again after that.
 
 Keep `bun run dev` running while developing. After the first successful import, the installed commands remain available when you close Terminal. Keep the project folder for updates and rebuilds.
 
@@ -45,7 +45,7 @@ Keep `bun run dev` running while developing. After the first successful import, 
 2. Search for a bot and press Return, or type its displayed number.
 3. Write your message and press **⌘Return** or click the send button.
 
-Recent messages refresh from Grok Bot's local cache every two seconds while the window is open. Drafts are saved in Raycast's local storage. **⌘O** opens the full Grok Bot chat. Escape closes the window. The back button returns to the bot list.
+Messages go through Grok Bot's own send queue, the same one its message box uses, so they appear in Grok Bot's history and are retried if the connection drops. Sending doesn't bring Grok Bot forward or touch its message box. Replies appear live as the bot writes them. Drafts are saved in Raycast's local storage. **⌘O** opens the full Grok Bot chat. Escape closes the window. The back button returns to the bot list.
 
 Numbering follows the pinned-first, most-recent order. A digit that can begin a longer number waits briefly for the next digit. The order stays fixed while you enter a number.
 
@@ -77,8 +77,8 @@ bun run dev
 
 - If an executable or artwork is missing, run `bun run dev` again.
 - If the list is empty, open Grok Bot, sign in, wait for its sidebar to load, and refresh the Raycast list.
-- If Grok Bot already has a draft or attachment, send or clear it in Grok Bot before sending from the extension.
-- If the recipient cannot be verified, close duplicate chat windows and open the intended chat in Grok Bot to refresh its selection cache.
+- If a chat says Grok Bot closed, open the chat from Raycast again and allow the restart.
+- If Raycast can't reach Grok Bot's conversations after a Grok Bot update, the extension may need an update.
 
 If you use a custom Electron user-data directory, set **Grok Bot Data Folder** in the extension preferences. The default is `~/Library/Application Support/Grok Bot`.
 
@@ -93,7 +93,7 @@ bun run build
 
 `bun run build` creates a release bundle in `dist/`. The helpers compile for your current Mac architecture. To regenerate the README screenshots after building, run `bun scripts/screenshots.mjs`.
 
-The integration was developed against Grok Bot 1.2.0 with its English interface. It uses Grok Bot's local cache and macOS Accessibility controls. Changes to either may require an extension update.
+The bot list reads Grok Bot's local cache. Chats use Grok Bot's internal renderer stores through its debugging port, checked against Grok Bot 1.2.3. Changes to either may require an extension update.
 
 ## Security and license
 

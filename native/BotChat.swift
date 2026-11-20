@@ -182,10 +182,6 @@ final class ChatController: NSObject, NSApplicationDelegate, NSWindowDelegate, W
     ) { result in
       if case .failure(let error) = result { emit(["error": error.localizedDescription]) }
     }
-    if state["focus"] as? Bool == true {
-      window.makeKeyAndOrderFront(nil)
-      NSApplication.shared.activate(ignoringOtherApps: true)
-    }
   }
 
   func userContentController(

@@ -1,18 +1,49 @@
 import {
+  Alert,
   LocalStorage,
   LaunchType,
+  Toast,
   closeMainWindow,
+  confirmAlert,
   environment,
   launchCommand,
   open,
+  showToast,
 } from "@raycast/api";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { nativeAvatar } from "./avatar";
-import { sendMessage } from "./bridge";
+import { GrokApp, relaunchGrok } from "./grok-app";
 import { loadHistory } from "./history";
 import { Bot, chatLink, loadRoster } from "./roster";
+
+async function connectGrok(): Promise<GrokApp> {
+  const connected = await GrokApp.connect();
+  if (connected) return connected;
+  const restart = await confirmAlert({
+    title: "Restart Grok Bot for Raycast?",
+    message:
+      "Raycast messages your bots through Grok Bot itself. Grok Bot will quit and reopen with a debugging port that only programs on this Mac can reach. It stays open until Grok Bot next quits, and any program on this Mac can use it to act in Grok Bot as you.",
+    primaryAction: {
+      title: "Restart Grok Bot",
+      style: Alert.ActionStyle.Default,
+    },
+  });
+  if (!restart)
+    throw new Error(
+      "Messaging from Raycast needs Grok Bot’s debugging port. Use Open Bot Chat to message in Grok Bot instead.",
+    );
+  const toast = await showToast({
+    style: Toast.Style.Animated,
+    title: "Restarting Grok Bot",
+  });
+  await relaunchGrok();
+  await toast.hide();
+  const app = await GrokApp.connect();
+  if (!app) throw new Error("Raycast couldn’t connect to Grok Bot.");
+  return app;
+}
 
 export async function openComposer(
   bot: Bot,
@@ -32,7 +63,10 @@ export async function openComposer(
   const key = `chat-draft-${createHash("sha256").update(`${accountSlot}/${bot.id}`).digest("hex")}`;
   const saved = await LocalStorage.getItem<string>(key);
   let draft = initialMessage || (typeof saved === "string" ? saved : "");
-  let messages = await loadHistory(folder, accountSlot, bot.id).catch(() => []);
+  const messages = await loadHistory(folder, accountSlot, bot.id).catch(
+    () => [],
+  );
+  const grok = await connectGrok();
   await closeMainWindow();
   const result = await new Promise<{ type: string; back?: boolean }>(
     (resolve, reject) => {
@@ -42,8 +76,7 @@ export async function openComposer(
       let buffer = "";
       let closed = false;
       let sending = false;
-      let polling = false;
-      let historyFailed = false;
+      let liveFailed = false;
       let closeResult: { type: string; back?: boolean } | undefined;
       let saveTimer: ReturnType<typeof setTimeout> | undefined;
       let saves = Promise.resolve();
@@ -62,57 +95,39 @@ export async function openComposer(
         child.kill("SIGTERM");
       };
       process.once("exit", stop);
-      const refresh = async () => {
-        if (polling || closed) return;
-        polling = true;
-        try {
-          const current = await loadRoster(folder);
-          if (
-            current.accountSlot !== accountSlot ||
-            !current.bots.some((item) => item.id === bot.id)
-          ) {
-            historyFailed = true;
-            write({
-              messages: [],
-              canSend: false,
-              status:
-                "The Grok Bot account or bot changed. Close this window and choose the bot again.",
-              error: true,
-            });
-            return;
-          }
-          try {
-            const latest = await loadHistory(folder, accountSlot, bot.id);
-            messages = latest;
-            write({
-              messages,
-              canSend: true,
-              ...(historyFailed ? { status: "", error: false } : {}),
-            });
-            historyFailed = false;
-          } catch {
-            historyFailed = true;
-            write({
-              messages: [],
-              canSend: true,
-              status:
-                "Recent messages are unavailable. Open this chat in Grok Bot to refresh them.",
-              error: true,
-            });
-          }
-        } catch (error) {
-          historyFailed = true;
-          write({
-            messages: [],
-            canSend: false,
-            status: error instanceof Error ? error.message : String(error),
-            error: true,
-          });
-        } finally {
-          polling = false;
-        }
+      const fail = (status: string, canSend: boolean) => {
+        liveFailed = true;
+        write({ canSend, status, error: true });
       };
-      const timer = setInterval(() => void refresh(), 2000);
+      grok.onClose(() =>
+        fail(
+          "Grok Bot closed. Open it, then open this chat again to keep messaging.",
+          false,
+        ),
+      );
+      grok
+        .watch(bot.id, accountSlot, (conversation) => {
+          if (!conversation.available)
+            return fail(
+              "The Grok Bot account or bot changed. Close this window and choose the bot again.",
+              false,
+            );
+          if (conversation.failed)
+            return fail(
+              "Recent messages are unavailable. Open this chat in Grok Bot to refresh them.",
+              true,
+            );
+          if (!conversation.ready) return;
+          write({
+            messages: conversation.messages,
+            canSend: true,
+            ...(liveFailed ? { status: "", error: false } : {}),
+          });
+          liveFailed = false;
+        })
+        .catch((error) =>
+          fail(error instanceof Error ? error.message : String(error), false),
+        );
       const handle = async (event: {
         type?: string;
         text?: string;
@@ -150,15 +165,17 @@ export async function openComposer(
         clearTimeout(saveTimer);
         try {
           await persist();
-          await sendMessage(bot, event.text, folder, accountSlot);
+          const delivery = await grok.send(bot.id, accountSlot, event.text);
           if (closed) return;
           draft = "";
           write({
             sending: false,
             clearDraft: true,
-            status: "Sent",
+            status:
+              delivery === "queued"
+                ? "Queued. Grok Bot will send it when it can."
+                : "Sent",
             error: false,
-            focus: true,
           });
           await persist().catch(() =>
             write({
@@ -166,13 +183,11 @@ export async function openComposer(
               error: true,
             }),
           );
-          await refresh();
         } catch (error) {
           write({
             sending: false,
             status: error instanceof Error ? error.message : String(error),
             error: true,
-            focus: true,
           });
         } finally {
           sending = false;
@@ -201,7 +216,7 @@ export async function openComposer(
       child.stderr.resume();
       child.stdin.on("error", () => undefined);
       child.on("error", (error) => {
-        clearInterval(timer);
+        void grok.close();
         process.removeListener("exit", stop);
         reject(
           new Error(
@@ -211,7 +226,7 @@ export async function openComposer(
       });
       child.on("close", () => {
         closed = true;
-        clearInterval(timer);
+        void grok.close();
         clearTimeout(saveTimer);
         process.removeListener("exit", stop);
         void persist()

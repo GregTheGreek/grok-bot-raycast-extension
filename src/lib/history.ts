@@ -17,8 +17,13 @@ export function parseHistory(value: unknown): ChatMessage[] {
   };
   if (cache?.schemaVersion !== 1 || !Array.isArray(cache.value?.entries))
     throw new Error("Unsupported Grok Bot conversation cache.");
+  return parseEntries(cache.value.entries);
+}
+
+// Grok Bot's cache and its live transcript store share these entry shapes.
+export function parseEntries(entries: unknown[]): ChatMessage[] {
   const messages: ChatMessage[] = [];
-  for (const raw of cache.value.entries) {
+  for (const raw of entries) {
     if (!raw || typeof raw !== "object") continue;
     const entry = raw as Record<string, unknown>;
     if (typeof entry.id !== "string") continue;
