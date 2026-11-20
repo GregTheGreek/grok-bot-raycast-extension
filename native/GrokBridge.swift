@@ -137,6 +137,11 @@ func send(_ request: Request) throws {
   }
   // The send works on Grok Bot in the background. Grok Bot brings itself forward when it
   // handles a chat link, so focus goes back to the app the user was in.
+  // Electron publishes window content to Accessibility in the background only on request.
+  let publishContent = { (root: AXUIElement) in
+    AXUIElementSetMessagingTimeout(root, 1)
+    AXUIElementSetAttributeValue(root, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+  }
   let previous = NSWorkspace.shared.frontmostApplication
   let returnFocus = {
     guard let previous, previous.bundleIdentifier != bundleID, !previous.isTerminated,
@@ -156,10 +161,16 @@ func send(_ request: Request) throws {
     return window
   }
   var targetWindow: AXUIElement?
-  if let app = running() {
+  if let app = running(), selected(request) {
     let root = AXUIElementCreateApplication(app.processIdentifier)
-    AXUIElementSetMessagingTimeout(root, 1)
-    targetWindow = readyWindow(root)
+    publishContent(root)
+    // The first request after Grok Bot starts takes a few seconds to publish the content.
+    _ = waitFor(
+      4,
+      condition: {
+        targetWindow = readyWindow(root)
+        return targetWindow != nil
+      })
   }
   // The chat link is needed only when Grok Bot does not already show this bot.
   if targetWindow == nil {
@@ -183,7 +194,7 @@ func send(_ request: Request) throws {
     throw BridgeError("Grok Bot is unavailable.")
   }
   let root = AXUIElementCreateApplication(app.processIdentifier)
-  AXUIElementSetMessagingTimeout(root, 1)
+  publishContent(root)
   guard
     targetWindow != nil
       || waitFor(
@@ -222,7 +233,9 @@ func send(_ request: Request) throws {
       "Grok Bot could not accept text through Accessibility. Check Raycast’s Accessibility permission."
     )
   }
-  guard waitFor(3, condition: { string(prompt, kAXValueAttribute) == request.message }),
+  // Grok Bot can replace the composer element while it publishes content, so each check finds it again.
+  let draft = { composer(window).map { string($0, kAXValueAttribute) } }
+  guard waitFor(3, condition: { draft() == request.message }),
     selected(request), sameWindow(root, window), heading(window, name: request.name)
   else {
     throw BridgeError(
@@ -233,7 +246,7 @@ func send(_ request: Request) throws {
     throw BridgeError(
       "Grok Bot’s Send message button is unavailable. The message remains in the composer.")
   }
-  guard string(prompt, kAXValueAttribute) == request.message, selected(request),
+  guard draft() == request.message, selected(request),
     sameWindow(root, window), heading(window, name: request.name)
   else {
     throw BridgeError("The active chat or draft changed. Review Grok Bot before trying again.")
