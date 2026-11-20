@@ -143,47 +143,15 @@ try {
   const common = await import(pathToFileURL(path.join(temp, commonName)).href);
   // This runs only the installed, trusted Grok Bot renderer to export its own artwork locally.
   const render = new Function("common", code)(common);
-  // Export names are minified and change between Grok Bot builds, so find each export by its structure.
-  const exported = Object.values(common);
-  const isHex = (value) =>
-    typeof value === "string" && /^#[0-9a-f]{3,8}$/i.test(value);
-  const bodyOf = exported.find(
+  // Minified export names vary between Grok Bot builds.
+  const bodyOf = Object.values(common).find(
     (value) =>
       typeof value === "function" &&
       ["starFlower", "heartChubby"].every((name) =>
         String(value).includes(name),
       ),
   );
-  const colors = exported
-    .filter(
-      (value) =>
-        Array.isArray(value) &&
-        value.length > 0 &&
-        value.every(
-          (item) => typeof item?.id === "string" && isHex(item.value),
-        ),
-    )
-    .sort((a, b) => b.length - a.length)[0];
-  const colorOf =
-    colors &&
-    exported.find((value) => {
-      // Only a pure two-key table lookup is called here.
-      if (
-        typeof value !== "function" ||
-        !/^function \w+\(\w+,\s*\w+\)\s*\{\s*return \w+\[\w+\]\[\w+\];?\s*\}$/.test(
-          String(value),
-        )
-      )
-        return false;
-      try {
-        return colors.every(
-          ({ id }) => isHex(value(id, "light")) && isHex(value(id, "dark")),
-        );
-      } catch {
-        return false;
-      }
-    });
-  if (!bodyOf || !colorOf)
+  if (!bodyOf)
     throw new Error("This Grok Bot build uses an unsupported avatar format.");
   const shapes = [
     "blob",
@@ -221,16 +189,6 @@ try {
       throw new Error(`Invalid Grok Bot avatar ${shape}`);
     writeChanged(path.join(folder, `${shape}.svg`), svg);
   }
-  const palette = Object.fromEntries(
-    colors.map(({ id }) => [
-      id,
-      { light: colorOf(id, "light"), dark: colorOf(id, "dark") },
-    ]),
-  );
-  writeChanged(
-    path.join(folder, "palette.json"),
-    `${JSON.stringify(palette, null, 2)}\n`,
-  );
   const iconset = path.join(temp, "Grok.iconset");
   execFileSync(
     "/usr/bin/iconutil",
